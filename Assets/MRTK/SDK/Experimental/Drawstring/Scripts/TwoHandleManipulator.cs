@@ -73,32 +73,6 @@ namespace Microsoft.MixedReality.Toolkit.UI
         }
 
         [SerializeField]
-        [Tooltip("Transform that contains the value label.")]
-        private Transform valueTransform = null;
-
-        /// <summary>
-        /// Transform that contains the value label.
-        /// </summary>
-        public Transform ValueTransform
-        {
-            get => valueTransform;
-            set => valueTransform = value;
-        }
-
-        [SerializeField]
-        [Tooltip("Animation curve for growing/shrinking the value label")]
-        private AnimationCurve valueAnimationCurve = null;
-
-        /// <summary>
-        /// Animation curve for growing/shrinking the value label.
-        /// </summary>
-        public AnimationCurve ValueAnimationCurve
-        {
-            get => valueAnimationCurve;
-            set => valueAnimationCurve = value;
-        }
-
-        [SerializeField]
         [Tooltip("Transform representing the left handle")]
         private Transform leftHandle = null;
 
@@ -124,16 +98,10 @@ namespace Microsoft.MixedReality.Toolkit.UI
             set => rightHandle = value;
         }
 
-        [Header("Elastic extent properties")]
         [SerializeField]
-        [Tooltip("Elastic extent minimum")]
-        public float minStretch;
+        public ElasticProperties elasticProperties;
         [SerializeField]
-        [Tooltip("Elastic extent maximum")]
-        public float maxStretch;
-        [SerializeField]
-        [Tooltip("Magnetic attraction points")]
-        public float[] demarcations;
+        public ElasticExtentProperties elasticExtent;
 
         [SerializeField]
         [Tooltip("Stretching behavior when grabbing with only one handle")]
@@ -271,6 +239,16 @@ namespace Microsoft.MixedReality.Toolkit.UI
             set => scaleLerpTime = value;
         }
 
+        /// <summary>
+        /// Returns true when one or more handles are being interacted with.
+        /// </summary>
+        public bool IsGrabbed => pointerIdToPointerMap.Count > 0;
+
+        /// <summary>
+        /// Returns true when one or more handles are being interacted with.
+        /// </summary>
+        public float HandleDistance => (leftHandle.localPosition - rightHandle.localPosition).magnitude;
+
         #endregion Serialized Fields
 
         #region Event handlers
@@ -341,19 +319,6 @@ namespace Microsoft.MixedReality.Toolkit.UI
         private Vector3 valueLabelInitialScale;
 
         /// <summary>
-        /// Elastic extent properties.
-        /// </summary>
-        private ElasticHandleLogic.ElasticLinearExtentProperties extentProperties
-        {
-            get => new ElasticHandleLogic.ElasticLinearExtentProperties
-            {
-                minStretch = this.minStretch,
-                maxStretch = this.maxStretch,
-                demarcations = this.demarcations
-            };
-        }
-
-        /// <summary>
         /// Holds the pointer and the initial intersection point of the pointer ray 
         /// with the object on pointer down in pointer space
         /// </summary>
@@ -406,7 +371,7 @@ namespace Microsoft.MixedReality.Toolkit.UI
 
             leftLineOffset = lineDataProvider.transform.localPosition - leftHandle.localPosition;
             rightLineOffset = (lineDataProvider.transform.localPosition + lineDataProvider.EndPoint.Position) - rightHandle.localPosition;
-            valueLabelInitialScale = valueTransform.localScale;
+            
         }
 
         private void Update()
@@ -424,8 +389,7 @@ namespace Microsoft.MixedReality.Toolkit.UI
             {
                 valueLabelAnimationTime = Mathf.Clamp01(valueLabelAnimationTime + 4.0f * Time.deltaTime);
             }
-            valueLabel.text = rightHandle.localPosition.x.ToString("F2") + "x";
-            valueTransform.localScale = valueLabelInitialScale * valueAnimationCurve.Evaluate(valueLabelAnimationTime);
+            
 
         }
 
@@ -650,8 +614,8 @@ namespace Microsoft.MixedReality.Toolkit.UI
             var leftHandlePointer = GetHandlePointer(HandleSide.Left).Value;
             var rightHandlePointer = GetHandlePointer(HandleSide.Right).Value;
 
-            elasticLogic.Setup(leftHandle.position, rightHandle.position, extentProperties,
-                new ElasticHandleLogic.ElasticProperties());
+            elasticLogic.Setup(leftHandle.position, rightHandle.position, elasticExtent,
+                elasticProperties);
 
             if (twoHandedManipulationType.HasFlag(TransformFlags.Rotate))
             {
@@ -698,8 +662,8 @@ namespace Microsoft.MixedReality.Toolkit.UI
         {
             Assert.IsTrue(pointerIdToPointerMap.Count == 1);
 
-            elasticLogic.Setup(leftHandle.position, rightHandle.position, extentProperties,
-                new ElasticHandleLogic.ElasticProperties());
+            elasticLogic.Setup(leftHandle.position, rightHandle.position, elasticExtent,
+                elasticProperties);
         }
 
         private void HandleOneHandMoveUpdated()

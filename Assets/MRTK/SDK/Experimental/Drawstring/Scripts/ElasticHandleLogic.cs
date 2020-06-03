@@ -8,6 +8,56 @@ using UnityEngine;
 
 namespace Microsoft.MixedReality.Toolkit.Physics
 {
+
+    /// <summary>
+    /// Properties of the extent in which a damped
+    /// harmonic oscillator is free to move.
+    /// </summary>
+    [Serializable]
+    public struct ElasticExtentProperties
+    {
+        /// <value>
+        /// Represents the lower bound of the extent,
+        /// specified as the norm of the n-dimensional extent
+        /// </value>
+        [SerializeField]
+        public float minStretch;
+
+        /// <value>
+        /// Represents the upper bound of the extent,
+        /// specified as the norm of the n-dimensional extent
+        /// </value>
+        [SerializeField]
+        public float maxStretch;
+
+        /// <value>
+        /// Whether the system, when approaching the upper bound,
+        /// will treat the upper bound as a snap point.
+        /// </value>
+        [SerializeField]
+        public bool snapToMax;
+
+        /// <value>
+        /// Points inside the extent to which the system will snap.
+        /// </value>
+        [SerializeField]
+        public float[] snapPoints;
+    }
+
+    /// <summary>
+    /// Properties of the damped harmonic oscillator differential system.
+    /// </summary>
+    [Serializable]
+    public struct ElasticProperties
+    {
+        public float mass;          // Mass of the simulated oscillator element
+        public float hand_k;        // Hand spring constant
+        public float end_k;
+        public float snap_k;        // Snap point spring constant
+        public float snap_radius;   // Extent at which snap points begin forcing the spring.
+        public float drag;          // Drag/damper factor, proportional to velocity.
+    }
+
     /// <summary>
     /// Implements a two-handle elastic "stretch" logic, which allows for
     /// either one or two pointers to stretch along a particular axis.
@@ -21,49 +71,14 @@ namespace Microsoft.MixedReality.Toolkit.Physics
     /// </summary>
     internal class ElasticHandleLogic
     {
-        [Serializable]
-        public struct ElasticLinearExtentProperties {
-            public float minStretch;       // Minimum stretch extent
-            public float maxStretch;       // Maximum stretch extent
-            public float[] demarcations;   // Points along the extent which the elastic will snap to
-        }
-
-        /// <summary>
-        /// Properties of the damped harmonic oscillator differential system.
-        /// </summary>
-        [Serializable]
-        public struct ElasticProperties
-        {
-            float mass;     // Mass of the simulated oscillator element
-            float k;        // Spring constant
-            float drag;     // Drag/damper factor, proportional to velocity.
-        }
-
-        ///// <summary>
-        ///// Represents the mutable state of an elastic handle governed by a
-        ///// damped harmonic oscillator differential system.
-        ///// 
-        ///// This is a struct instead of class, to prevent hammering the heap
-        ///// whenever we call Setup() with new pointers.
-        ///// 
-        ///// </summary>
-        //private struct ElasticHandle
-        //{
-        //    public Vector3 startPosition;
-        //    public float x_initial;
-        //    public float x_current;
-        //    public float v_initial;
-        //    public float v_current;
-        //}
-
-        private float currentLength = 0.1f;
-        private float currentVelocity;
-
         private Vector3 leftInitialPosition;
         private Vector3 rightInitialPosition;
 
-        private ElasticLinearExtentProperties extentInfo;
+        private ElasticExtentProperties extentInfo;
         private ElasticProperties elasticProperties;
+
+        private float currentValue = 0.2f;
+        private float currentVelocity;
 
         private bool isSetup;
 
@@ -79,40 +94,10 @@ namespace Microsoft.MixedReality.Toolkit.Physics
         /// <param name="leftHandleVelocity">Optional, initial velocity in 1-dimensional stretch space</param>
         /// <param name="rightHandleVelocity">Optional, initial velocity in 1-dimensional stretch space</param>
         public virtual void Setup(Vector3 leftHandleStart, Vector3 rightHandleStart,
-                                    ElasticLinearExtentProperties extentInfo, ElasticProperties elasticProperties,
+                                    ElasticExtentProperties extentInfo, ElasticProperties elasticProperties,
                                     float leftHandleVelocity = 0.0f, float rightHandleVelocity = 0.0f)
         {
-            var center = (leftHandleStart + rightHandleStart) / 2.0f;
-            var leftPos = Vector3.Magnitude(leftHandleStart - center);
-            var rightPos = Vector3.Magnitude(rightHandleStart - center);
             isSetup = true;
-            // Note; does not actually allocate on the heap.
-            // ElasticHandle is a struct/value type, which is
-            // mutated in place. Mutable structs are generally
-            // considered poor design as it is easy to "lose changes"
-            // when passing them around by value; take care to
-            // avoid passing these to other functions, as they will
-            // be copied.
-            //leftHandle = new ElasticHandle
-            //{
-            //    startPosition = leftHandleStart,
-            //    x_initial = leftPos,
-            //    x_current = leftPos,
-            //    v_initial = leftHandleVelocity,
-            //    v_current = leftHandleVelocity
-
-            //};
-            //rightHandle = new ElasticHandle
-            //{
-            //    startPosition = rightHandleStart,
-            //    x_initial = rightPos,
-            //    x_current = rightPos,
-            //    v_initial = rightHandleVelocity,
-            //    v_current = rightHandleVelocity
-
-            //};
-
-            //currentPosition = Vector3.Magnitude(leftHandleStart - rightHandleStart);
 
             leftInitialPosition = leftHandleStart;
             rightInitialPosition = rightHandleStart;
@@ -133,9 +118,9 @@ namespace Microsoft.MixedReality.Toolkit.Physics
         {
             // If we have not been Setup() yet, we extend the handles
             // to the max stretch.
-            if (!isSetup) { return extentInfo.maxStretch; }
+            if (!isSetup) { return currentValue; }
 
-            var handDistance = currentLength;
+            var handDistance = currentValue;
             if (leftPointer.HasValue && rightPointer.HasValue)
             {
                 // If we have both pointers, our hand distance is easy; just the distance
@@ -154,39 +139,62 @@ namespace Microsoft.MixedReality.Toolkit.Physics
             }
 
             // F = -kx - (drag * v)
-            var force = (handDistance - currentLength) * 2.0f - 0.1f * currentVelocity;
+            var force = (handDistance - currentValue) * elasticProperties.hand_k - elasticProperties.drag * currentVelocity;
 
-            // Distance that the current stretch length is from the end cap.
-            var distFromEnd = extentInfo.maxStretch - currentLength;
+            // Distance that the current stretch value is from the end limit.
+            float distFromEnd = extentInfo.maxStretch - currentValue;
 
             // If we are extended beyond the end cap,
             // add one-sided force back to the center.
-            if(currentLength > extentInfo.maxStretch)
+            if (currentValue > extentInfo.maxStretch)
             {
-                force += distFromEnd * 5.0f;
-            } else 
+                force += distFromEnd * elasticProperties.end_k;
+            }
+            else
             {
                 // Otherwise, add standard bidirectional magnetic/snapping force towards the end marker. (optional)
-                //force += (distFromEnd) * 5.0f * (1.0f - Mathf.Clamp01(Mathf.Abs(15.0f * distFromEnd)));
+                if (extentInfo.snapToMax)
+                {
+                    force += (distFromEnd) * elasticProperties.end_k * (1.0f - Mathf.Clamp01(Mathf.Abs(distFromEnd / elasticProperties.snap_radius)));
+                }
+            }
+
+            distFromEnd = extentInfo.minStretch - currentValue;
+            if (currentValue < extentInfo.minStretch)
+            {
+                force += distFromEnd * elasticProperties.end_k;
+            }
+            else
+            {
+                // Otherwise, add standard bidirectional magnetic/snapping force towards the end marker. (optional)
+                if (extentInfo.snapToMax)
+                {
+                    force += (distFromEnd) * elasticProperties.end_k * (1.0f - Mathf.Clamp01(Mathf.Abs(distFromEnd / elasticProperties.snap_radius)));
+                }
             }
 
             // Iterate over each snapping point, and apply forces as necessary.
-            foreach(float snappingPoint in extentInfo.demarcations)
+            foreach (float snappingPoint in extentInfo.snapPoints)
             {
                 // Calculate distance from snapping point.
-                var distFromSnappingPoint = snappingPoint - currentLength;
-                force += (distFromSnappingPoint) * 5.0f * (1.0f - Mathf.Clamp01(Mathf.Abs(15.0f * distFromSnappingPoint)));
+                var distFromSnappingPoint = snappingPoint - currentValue;
+
+                // Snap force is calculated by multiplying the "-kx" factor by
+                // a clamped distance factor. This results in an overall
+                // hyperbolic profile to the force imparted by the snap point.
+                force += (distFromSnappingPoint) * elasticProperties.snap_k
+                          * (1.0f - Mathf.Clamp01(Mathf.Abs(distFromSnappingPoint / elasticProperties.snap_radius)));
             }
 
             // a = F/m
-            var accel = force / 0.01f;
+            var accel = force / elasticProperties.mass;
 
             // Integrate our acceleration over time.
             currentVelocity += accel * Time.deltaTime;
             // Integrate our velocity over time.
-            currentLength += currentVelocity * Time.deltaTime;
+            currentValue += currentVelocity * Time.deltaTime;
 
-            return currentLength;
+            return currentValue;
         }
 
         public virtual Vector3 GetCenterPosition(Vector3? leftPointer, Vector3? rightPointer)
