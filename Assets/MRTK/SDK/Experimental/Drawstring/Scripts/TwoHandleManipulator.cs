@@ -101,7 +101,7 @@ namespace Microsoft.MixedReality.Toolkit.UI
         [SerializeField]
         public ElasticProperties elasticProperties;
         [SerializeField]
-        public ElasticExtentProperties elasticExtent;
+        public ElasticExtentProperties<float> elasticExtent;
 
         [SerializeField]
         [Tooltip("Stretching behavior when grabbing with only one handle")]

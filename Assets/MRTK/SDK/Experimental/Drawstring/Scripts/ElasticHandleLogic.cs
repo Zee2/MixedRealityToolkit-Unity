@@ -10,55 +10,6 @@ namespace Microsoft.MixedReality.Toolkit.Physics
 {
 
     /// <summary>
-    /// Properties of the extent in which a damped
-    /// harmonic oscillator is free to move.
-    /// </summary>
-    [Serializable]
-    public struct ElasticExtentProperties
-    {
-        /// <value>
-        /// Represents the lower bound of the extent,
-        /// specified as the norm of the n-dimensional extent
-        /// </value>
-        [SerializeField]
-        public float minStretch;
-
-        /// <value>
-        /// Represents the upper bound of the extent,
-        /// specified as the norm of the n-dimensional extent
-        /// </value>
-        [SerializeField]
-        public float maxStretch;
-
-        /// <value>
-        /// Whether the system, when approaching the upper bound,
-        /// will treat the upper bound as a snap point.
-        /// </value>
-        [SerializeField]
-        public bool snapToMax;
-
-        /// <value>
-        /// Points inside the extent to which the system will snap.
-        /// </value>
-        [SerializeField]
-        public float[] snapPoints;
-    }
-
-    /// <summary>
-    /// Properties of the damped harmonic oscillator differential system.
-    /// </summary>
-    [Serializable]
-    public struct ElasticProperties
-    {
-        public float mass;          // Mass of the simulated oscillator element
-        public float hand_k;        // Hand spring constant
-        public float end_k;
-        public float snap_k;        // Snap point spring constant
-        public float snap_radius;   // Extent at which snap points begin forcing the spring.
-        public float drag;          // Drag/damper factor, proportional to velocity.
-    }
-
-    /// <summary>
     /// Implements a two-handle elastic "stretch" logic, which allows for
     /// either one or two pointers to stretch along a particular axis.
     /// 
@@ -74,11 +25,7 @@ namespace Microsoft.MixedReality.Toolkit.Physics
         private Vector3 leftInitialPosition;
         private Vector3 rightInitialPosition;
 
-        private ElasticExtentProperties extentInfo;
-        private ElasticProperties elasticProperties;
-
-        private float currentValue = 0.2f;
-        private float currentVelocity;
+        private LinearElasticSystem elasticSystem;
 
         private bool isSetup;
 
@@ -94,15 +41,13 @@ namespace Microsoft.MixedReality.Toolkit.Physics
         /// <param name="leftHandleVelocity">Optional, initial velocity in 1-dimensional stretch space</param>
         /// <param name="rightHandleVelocity">Optional, initial velocity in 1-dimensional stretch space</param>
         public virtual void Setup(Vector3 leftHandleStart, Vector3 rightHandleStart,
-                                    ElasticExtentProperties extentInfo, ElasticProperties elasticProperties,
+                                    ElasticExtentProperties<float> extentInfo, ElasticProperties elasticProperties,
                                     float leftHandleVelocity = 0.0f, float rightHandleVelocity = 0.0f)
         {
             isSetup = true;
-
             leftInitialPosition = leftHandleStart;
             rightInitialPosition = rightHandleStart;
-            this.extentInfo = extentInfo;
-            this.elasticProperties = elasticProperties;
+            elasticSystem = new LinearElasticSystem((leftHandleStart - rightHandleStart).magnitude, 0.0f, extentInfo, elasticProperties);
         }
 
         /// <summary>
@@ -118,9 +63,9 @@ namespace Microsoft.MixedReality.Toolkit.Physics
         {
             // If we have not been Setup() yet, we extend the handles
             // to the max stretch.
-            if (!isSetup) { return currentValue; }
+            if (!isSetup) { return elasticSystem.GetCurrentValue(); }
 
-            var handDistance = currentValue;
+            var handDistance = elasticSystem.GetCurrentValue();
             if (leftPointer.HasValue && rightPointer.HasValue)
             {
                 // If we have both pointers, our hand distance is easy; just the distance
@@ -138,63 +83,7 @@ namespace Microsoft.MixedReality.Toolkit.Physics
                 handDistance = 2.0f * Vector3.Magnitude(leftPointer.Value - (leftInitialPosition + rightInitialPosition) / 2.0f);
             }
 
-            // F = -kx - (drag * v)
-            var force = (handDistance - currentValue) * elasticProperties.hand_k - elasticProperties.drag * currentVelocity;
-
-            // Distance that the current stretch value is from the end limit.
-            float distFromEnd = extentInfo.maxStretch - currentValue;
-
-            // If we are extended beyond the end cap,
-            // add one-sided force back to the center.
-            if (currentValue > extentInfo.maxStretch)
-            {
-                force += distFromEnd * elasticProperties.end_k;
-            }
-            else
-            {
-                // Otherwise, add standard bidirectional magnetic/snapping force towards the end marker. (optional)
-                if (extentInfo.snapToMax)
-                {
-                    force += (distFromEnd) * elasticProperties.end_k * (1.0f - Mathf.Clamp01(Mathf.Abs(distFromEnd / elasticProperties.snap_radius)));
-                }
-            }
-
-            distFromEnd = extentInfo.minStretch - currentValue;
-            if (currentValue < extentInfo.minStretch)
-            {
-                force += distFromEnd * elasticProperties.end_k;
-            }
-            else
-            {
-                // Otherwise, add standard bidirectional magnetic/snapping force towards the end marker. (optional)
-                if (extentInfo.snapToMax)
-                {
-                    force += (distFromEnd) * elasticProperties.end_k * (1.0f - Mathf.Clamp01(Mathf.Abs(distFromEnd / elasticProperties.snap_radius)));
-                }
-            }
-
-            // Iterate over each snapping point, and apply forces as necessary.
-            foreach (float snappingPoint in extentInfo.snapPoints)
-            {
-                // Calculate distance from snapping point.
-                var distFromSnappingPoint = snappingPoint - currentValue;
-
-                // Snap force is calculated by multiplying the "-kx" factor by
-                // a clamped distance factor. This results in an overall
-                // hyperbolic profile to the force imparted by the snap point.
-                force += (distFromSnappingPoint) * elasticProperties.snap_k
-                          * (1.0f - Mathf.Clamp01(Mathf.Abs(distFromSnappingPoint / elasticProperties.snap_radius)));
-            }
-
-            // a = F/m
-            var accel = force / elasticProperties.mass;
-
-            // Integrate our acceleration over time.
-            currentVelocity += accel * Time.deltaTime;
-            // Integrate our velocity over time.
-            currentValue += currentVelocity * Time.deltaTime;
-
-            return currentValue;
+            return elasticSystem.ComputeIteration(handDistance, Time.deltaTime);
         }
 
         public virtual Vector3 GetCenterPosition(Vector3? leftPointer, Vector3? rightPointer)
@@ -214,23 +103,6 @@ namespace Microsoft.MixedReality.Toolkit.Physics
             {
                 return Vector3.zero; // Failure case.
             }
-        }
-
-            private float GetMinDistanceBetweenHands(Vector3[] handsPressedArray)
-        {
-            var result = float.MaxValue;
-            for (int i = 0; i < handsPressedArray.Length; i++)
-            {
-                for (int j = i + 1; j < handsPressedArray.Length; j++)
-                {
-                    var distance = Vector3.Distance(handsPressedArray[i], handsPressedArray[j]);
-                    if (distance < result)
-                    {
-                        result = distance;
-                    }
-                }
-            }
-            return result;
         }
     }
 }
