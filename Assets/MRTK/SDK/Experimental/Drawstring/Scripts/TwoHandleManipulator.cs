@@ -377,6 +377,8 @@ namespace Microsoft.MixedReality.Toolkit.UI
         {
             rigidBody = HostTransform.GetComponent<Rigidbody>();
             constraints = new ConstraintManager(gameObject);
+
+            // Necessary because Unity cannot show generics in inspector.
             elasticExtent = new ElasticExtentProperties<float>
             {
                 minStretch = minStretch,
@@ -405,8 +407,6 @@ namespace Microsoft.MixedReality.Toolkit.UI
             {
                 valueLabelAnimationTime = Mathf.Clamp01(valueLabelAnimationTime + 4.0f * Time.deltaTime);
             }
-            
-
         }
 
         #endregion MonoBehaviour Functions
@@ -718,26 +718,6 @@ namespace Microsoft.MixedReality.Toolkit.UI
                 targetTransform.Position = elasticLogic.GetCenterPosition(leftHandlePointer?.GrabPoint, rightHandlePointer?.GrabPoint);
             }
 
-
-            //PointerData pointerData = GetFirstPointer();
-            //IMixedRealityPointer pointer = pointerData.pointer;
-
-            //var targetTransform = new MixedRealityTransform(HostTransform.position, HostTransform.rotation, HostTransform.localScale);
-
-            //constraints.ApplyScaleConstraints(ref targetTransform, true, IsNearManipulation());
-
-            //Quaternion gripRotation;
-            //TryGetGripRotation(pointer, out gripRotation);
-            //targetTransform.Rotation = gripRotation * objectToGripRotation;
-
-            //constraints.ApplyRotationConstraints(ref targetTransform, true, IsNearManipulation());
-
-            //RotateInOneHandType rotateInOneHandType = isNearManipulation ? oneHandRotationModeNear : oneHandRotationModeFar;
-            //MixedRealityPose pointerPose = new MixedRealityPose(pointer.Position, pointer.Rotation);
-            //targetTransform.Position = moveLogic.Update(pointerPose, targetTransform.Rotation, targetTransform.Scale, rotateInOneHandType != RotateInOneHandType.RotateAboutObjectCenter);
-
-            //constraints.ApplyTranslationConstraints(ref targetTransform, true, IsNearManipulation());
-
             ApplyTargetTransform(targetTransform);
             UpdateLineData();
         }
@@ -845,13 +825,13 @@ namespace Microsoft.MixedReality.Toolkit.UI
         /// <summary>
         /// Acquire the current position of the pointer that is
         /// grabbing the specified handle.
-        /// </summary>`
-        /// <returns>Nullable pointer</returns>
+        /// </summary>
+        /// <returns>Nullable PointerData</returns>
         private PointerData? GetHandlePointer(HandleSide side)
         {
             if(pointerIdToPointerMap.Any(x => x.Value.side == side))
             {
-                return pointerIdToPointerMap.Single(x => x.Value.side == side).Value;
+                return pointerIdToPointerMap.First(x => x.Value.side == side).Value;
             } else
             {
                 return null;
