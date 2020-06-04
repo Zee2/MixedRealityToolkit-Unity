@@ -61,9 +61,8 @@ namespace Microsoft.MixedReality.Toolkit.Physics
         /// <param name="rightPointer">World position of the pointer manipulating the right handle.</param>
         public virtual float Update(Vector3? leftPointer, Vector3? rightPointer)
         {
-            // If we have not been Setup() yet, we extend the handles
-            // to the max stretch.
-            if (!isSetup) { return elasticSystem.GetCurrentValue(); }
+            // If we have not been Setup() yet
+            if (!isSetup) { return 0.1f; }
 
             var handDistance = elasticSystem.GetCurrentValue();
             if (leftPointer.HasValue && rightPointer.HasValue)

@@ -99,9 +99,16 @@ namespace Microsoft.MixedReality.Toolkit.UI
         }
 
         [SerializeField]
+        [Tooltip("Properties of the damped harmonic oscillator differential system")]
         public ElasticProperties elasticProperties;
         [SerializeField]
-        public ElasticExtentProperties<float> elasticExtent;
+        public float minStretch;
+        [SerializeField]
+        public float maxStretch;
+        [SerializeField]
+        public bool snapToMax;
+        [SerializeField]
+        public float[] snapPoints;
 
         [SerializeField]
         [Tooltip("Stretching behavior when grabbing with only one handle")]
@@ -351,6 +358,8 @@ namespace Microsoft.MixedReality.Toolkit.UI
 
         private ConstraintManager constraints;
 
+        private ElasticExtentProperties<float> elasticExtent;
+
         private bool IsOneHandedManipulationEnabled => manipulationType.HasFlag(ManipulationHandFlags.OneHanded) && pointerIdToPointerMap.Count == 1;
         private bool IsTwoHandedManipulationEnabled => manipulationType.HasFlag(ManipulationHandFlags.TwoHanded) && pointerIdToPointerMap.Count > 1;
 
@@ -368,6 +377,13 @@ namespace Microsoft.MixedReality.Toolkit.UI
         {
             rigidBody = HostTransform.GetComponent<Rigidbody>();
             constraints = new ConstraintManager(gameObject);
+            elasticExtent = new ElasticExtentProperties<float>
+            {
+                minStretch = minStretch,
+                maxStretch = maxStretch,
+                snapToMax = snapToMax,
+                snapPoints = snapPoints
+            };
 
             leftLineOffset = lineDataProvider.transform.localPosition - leftHandle.localPosition;
             rightLineOffset = (lineDataProvider.transform.localPosition + lineDataProvider.EndPoint.Position) - rightHandle.localPosition;
