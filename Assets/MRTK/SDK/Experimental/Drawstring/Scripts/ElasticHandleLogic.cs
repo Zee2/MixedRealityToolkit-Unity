@@ -59,27 +59,29 @@ namespace Microsoft.MixedReality.Toolkit.Physics
         /// </summary>
         /// <param name="leftPointer">World position of the pointer manipulating the left handle.</param>
         /// <param name="rightPointer">World position of the pointer manipulating the right handle.</param>
-        public virtual float Update(Vector3? leftPointer, Vector3? rightPointer)
+        public virtual float Update(Vector3? leftPointer, Vector3? rightPointer, Vector3? normalizedAxis = null)
         {
             // If we have not been Setup() yet
             if (!isSetup) { return 0.1f; }
 
+            var handleAxis = normalizedAxis ?? (rightInitialPosition - leftInitialPosition).normalized;
+
             var handDistance = elasticSystem.GetCurrentValue();
             if (leftPointer.HasValue && rightPointer.HasValue)
             {
-                // If we have both pointers, our hand distance is easy; just the distance
-                // between the pointers.
-                handDistance = Vector3.Magnitude(leftPointer.Value - rightPointer.Value);
+                // If we have both pointers, we simply project the vector between the
+                // two hands onto the handle axis vector.
+                handDistance = Vector3.Dot(rightPointer.Value - leftPointer.Value, handleAxis);
             } else if (!leftPointer.HasValue && rightPointer.HasValue)
             {
                 // If we only have a right pointer, calculate the hand distance
                 // as twice the distance of the right pointer from the center.
-                handDistance = 2.0f * Vector3.Magnitude(rightPointer.Value - (leftInitialPosition + rightInitialPosition) / 2.0f);
+                handDistance = 2.0f * Vector3.Dot(rightPointer.Value - (leftInitialPosition + rightInitialPosition) / 2.0f, handleAxis);
             } else if (leftPointer.HasValue && !rightPointer.HasValue)
             {
                 // If we only have a left pointer, calculate the hand distance
                 // as twice the distance of the left pointer from the center.
-                handDistance = 2.0f * Vector3.Magnitude(leftPointer.Value - (leftInitialPosition + rightInitialPosition) / 2.0f);
+                handDistance = 2.0f * -Vector3.Dot(leftPointer.Value - (leftInitialPosition + rightInitialPosition) / 2.0f, handleAxis);
             }
 
             return elasticSystem.ComputeIteration(handDistance, Time.deltaTime);

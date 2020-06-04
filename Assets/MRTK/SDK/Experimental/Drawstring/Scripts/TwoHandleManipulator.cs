@@ -101,6 +101,8 @@ namespace Microsoft.MixedReality.Toolkit.UI
         [SerializeField]
         [Tooltip("Properties of the damped harmonic oscillator differential system")]
         public ElasticProperties elasticProperties;
+
+        // Necessary because Unity cannot show generics in inspector.
         [SerializeField]
         public float minStretch;
         [SerializeField]
@@ -358,8 +360,6 @@ namespace Microsoft.MixedReality.Toolkit.UI
 
         private ConstraintManager constraints;
 
-        private ElasticExtentProperties<float> elasticExtent;
-
         private bool IsOneHandedManipulationEnabled => manipulationType.HasFlag(ManipulationHandFlags.OneHanded) && pointerIdToPointerMap.Count == 1;
         private bool IsTwoHandedManipulationEnabled => manipulationType.HasFlag(ManipulationHandFlags.TwoHanded) && pointerIdToPointerMap.Count > 1;
 
@@ -377,15 +377,6 @@ namespace Microsoft.MixedReality.Toolkit.UI
         {
             rigidBody = HostTransform.GetComponent<Rigidbody>();
             constraints = new ConstraintManager(gameObject);
-
-            // Necessary because Unity cannot show generics in inspector.
-            elasticExtent = new ElasticExtentProperties<float>
-            {
-                minStretch = minStretch,
-                maxStretch = maxStretch,
-                snapToMax = snapToMax,
-                snapPoints = snapPoints
-            };
 
             leftLineOffset = lineDataProvider.transform.localPosition - leftHandle.localPosition;
             rightLineOffset = (lineDataProvider.transform.localPosition + lineDataProvider.EndPoint.Position) - rightHandle.localPosition;
@@ -629,7 +620,13 @@ namespace Microsoft.MixedReality.Toolkit.UI
 
             var leftHandlePointer = GetHandlePointer(HandleSide.Left).Value;
             var rightHandlePointer = GetHandlePointer(HandleSide.Right).Value;
-
+            var elasticExtent = new ElasticExtentProperties<float>
+            {
+                minStretch = minStretch,
+                maxStretch = maxStretch,
+                snapToMax = snapToMax,
+                snapPoints = snapPoints
+            };
             elasticLogic.Setup(leftHandle.position, rightHandle.position, elasticExtent,
                 elasticProperties);
 
@@ -652,7 +649,7 @@ namespace Microsoft.MixedReality.Toolkit.UI
             var leftHandlePointer = GetHandlePointer(HandleSide.Left).Value;
             var rightHandlePointer = GetHandlePointer(HandleSide.Right).Value;
 
-            var elasticDistance = elasticLogic.Update(leftHandlePointer.GrabPoint, rightHandlePointer.GrabPoint);
+            var elasticDistance = elasticLogic.Update(leftHandlePointer.GrabPoint, rightHandlePointer.GrabPoint, transform.right);
 
             // Set handle positions based on the calculated elastic dynamics.
             leftHandle.localPosition = Vector3.right * -elasticDistance / 2.0f;
@@ -677,7 +674,13 @@ namespace Microsoft.MixedReality.Toolkit.UI
         private void HandleOneHandMoveStarted()
         {
             Assert.IsTrue(pointerIdToPointerMap.Count == 1);
-
+            var elasticExtent = new ElasticExtentProperties<float>
+            {
+                minStretch = minStretch,
+                maxStretch = maxStretch,
+                snapToMax = snapToMax,
+                snapPoints = snapPoints
+            };
             elasticLogic.Setup(leftHandle.position, rightHandle.position, elasticExtent,
                 elasticProperties);
         }
@@ -687,8 +690,10 @@ namespace Microsoft.MixedReality.Toolkit.UI
             Debug.Assert(pointerIdToPointerMap.Count == 1);
 
             var targetTransform = new MixedRealityTransform(HostTransform.position, HostTransform.rotation, HostTransform.localScale);
-            var leftHandlePointer = GetHandlePointer(HandleSide.Left);
-            var rightHandlePointer = GetHandlePointer(HandleSide.Right);
+            
+            // Nullable references to these pointers.
+            PointerData? leftHandlePointer = GetHandlePointer(HandleSide.Left);
+            PointerData? rightHandlePointer = GetHandlePointer(HandleSide.Right);
 
             float elasticDistance;
             if (oneHandStretchBehavior == OneHandStretchType.KeepOtherEndSteady) {
@@ -697,7 +702,8 @@ namespace Microsoft.MixedReality.Toolkit.UI
                 // of the handle that is *not* being grabbed.
                 elasticDistance = elasticLogic.Update(
                     leftHandlePointer.HasValue ? leftHandlePointer.Value.GrabPoint : leftHandle.position,
-                    rightHandlePointer.HasValue ? rightHandlePointer.Value.GrabPoint : rightHandle.position
+                    rightHandlePointer.HasValue ? rightHandlePointer.Value.GrabPoint : rightHandle.position,
+                    transform.right // Handle axis is the right vector.
                 );
             } else
             {
