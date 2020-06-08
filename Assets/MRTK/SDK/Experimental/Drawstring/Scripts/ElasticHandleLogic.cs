@@ -59,7 +59,9 @@ namespace Microsoft.MixedReality.Toolkit.Physics
         /// </summary>
         /// <param name="leftPointer">World position of the pointer manipulating the left handle.</param>
         /// <param name="rightPointer">World position of the pointer manipulating the right handle.</param>
-        public virtual float Update(Vector3? leftPointer, Vector3? rightPointer, Vector3? normalizedAxis = null)
+        /// <param name="deltaTime">Amount of time to simulate this step.</param>
+        /// <param name="normalizedAxis">World axis of the two-handle system.</param>
+        public virtual float Update(Vector3? leftPointer, Vector3? rightPointer, float deltaTime, Vector3? normalizedAxis = null)
         {
             // If we have not been Setup() yet
             if (!isSetup) { return 0.1f; }
@@ -84,7 +86,7 @@ namespace Microsoft.MixedReality.Toolkit.Physics
                 handDistance = 2.0f * -Vector3.Dot(leftPointer.Value - (leftInitialPosition + rightInitialPosition) / 2.0f, handleAxis);
             }
 
-            return elasticSystem.ComputeIteration(handDistance, Time.deltaTime);
+            return elasticSystem.ComputeIteration(handDistance, deltaTime);
         }
 
         public virtual Vector3 GetCenterPosition(Vector3? leftPointer, Vector3? rightPointer)

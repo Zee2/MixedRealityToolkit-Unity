@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 62357f3c6a0761b4e8ba61a00c1e11e6
+guid: 9ec4fa843c94733429c3b6a53421aa75
 ModelImporter:
   serializedVersion: 23
   fileIDToRecycleName:
@@ -9,7 +9,6 @@ ModelImporter:
     2300000: //RootNode
     3300000: //RootNode
     4300000: Torus
-    4300002: Sphere
   externalObjects: {}
   materials:
     importMaterials: 1

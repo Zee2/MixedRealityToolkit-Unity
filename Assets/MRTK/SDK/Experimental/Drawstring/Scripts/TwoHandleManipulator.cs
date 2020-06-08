@@ -324,8 +324,8 @@ namespace Microsoft.MixedReality.Toolkit.UI
 
         private Vector3 leftLineOffset, rightLineOffset;
 
-        private float valueLabelAnimationTime = 0;
-        private Vector3 valueLabelInitialScale;
+        private float lastUpdateTime = 0.0f;
+
 
         /// <summary>
         /// Holds the pointer and the initial intersection point of the pointer ray 
@@ -387,16 +387,12 @@ namespace Microsoft.MixedReality.Toolkit.UI
         {
             if(pointerIdToPointerMap.Count == 0)
             {
-                var elasticDistance = elasticLogic.Update(null, null);
-
+                var elasticDistance = elasticLogic.Update(null, null, Time.time - lastUpdateTime);
+                lastUpdateTime = Time.time;
                 leftHandle.localPosition = Vector3.right * -elasticDistance / 2.0f;
                 rightHandle.localPosition = Vector3.right * elasticDistance / 2.0f;
 
                 UpdateLineData();
-                valueLabelAnimationTime = Mathf.Clamp01(valueLabelAnimationTime - 4.0f * Time.deltaTime);
-            } else
-            {
-                valueLabelAnimationTime = Mathf.Clamp01(valueLabelAnimationTime + 4.0f * Time.deltaTime);
             }
         }
 
@@ -649,7 +645,8 @@ namespace Microsoft.MixedReality.Toolkit.UI
             var leftHandlePointer = GetHandlePointer(HandleSide.Left).Value;
             var rightHandlePointer = GetHandlePointer(HandleSide.Right).Value;
 
-            var elasticDistance = elasticLogic.Update(leftHandlePointer.GrabPoint, rightHandlePointer.GrabPoint, transform.right);
+            var elasticDistance = elasticLogic.Update(leftHandlePointer.GrabPoint, rightHandlePointer.GrabPoint, Time.time - lastUpdateTime, transform.right);
+            lastUpdateTime = Time.time;
 
             // Set handle positions based on the calculated elastic dynamics.
             leftHandle.localPosition = Vector3.right * -elasticDistance / 2.0f;
@@ -703,14 +700,17 @@ namespace Microsoft.MixedReality.Toolkit.UI
                 elasticDistance = elasticLogic.Update(
                     leftHandlePointer.HasValue ? leftHandlePointer.Value.GrabPoint : leftHandle.position,
                     rightHandlePointer.HasValue ? rightHandlePointer.Value.GrabPoint : rightHandle.position,
+                    Time.time - lastUpdateTime,
                     transform.right // Handle axis is the right vector.
                 );
+                lastUpdateTime = Time.time;
             } else
             {
                 // If we are one-hand stretching around the center, elasticLogic.Update()
                 // will handle the missing pointers for us and calculate a proper
                 // centered stretch behavior.
-                elasticDistance = elasticLogic.Update(leftHandlePointer?.GrabPoint, rightHandlePointer?.GrabPoint);
+                elasticDistance = elasticLogic.Update(leftHandlePointer?.GrabPoint, rightHandlePointer?.GrabPoint, Time.time - lastUpdateTime);
+                lastUpdateTime = Time.time;
             }
 
             // Set handle positions based on the calculated elastic dynamics.
